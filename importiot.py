@@ -5,12 +5,16 @@ import datetime
 import random
 import statistics
 import sys
+import time
 from _datetime import timedelta
 
 from pymongo import MongoClient, WriteConcern
 
 # constants
-device_list = ["PTA101", "PTA299", "BRA001", "FRZ191", "FRB980", "AUS009", "JPY891", "JPY791", "ITI112", "SPL556"]
+device_list = [
+    "PTA101", "PTA299", "BRA001", "FRZ191", "FRB980", "AUS009", "JPY891",
+    "JPY791", "ITI112", "SPL556"
+]
 start_date = datetime.datetime(2020, 1, 1)  # first day to inject data
 days = 100  # number of days to inject
 
@@ -25,6 +29,7 @@ def change_temp(temp, mini, maxi, delta):
 
 
 def run(coll, device):
+    start_gen = time.time()
     docs = []
 
     for day in range(days):
@@ -36,7 +41,10 @@ def run(coll, device):
             measures = []
             temperatures_list = []
             for minute in range(60 - missed):
-                measures.append({"minute": minute, "value": round(float(temp), 2)})
+                measures.append({
+                    "minute": minute,
+                    "value": round(float(temp), 2)
+                })
                 temperatures_list.append(temp)
                 temp = change_temp(temp, 13, 29, 5)
 
@@ -51,19 +59,30 @@ def run(coll, device):
                 "recorded_measures": 60 - missed,
                 "measures": measures
             })
+    start_insert = time.time()
     coll.insert_many(docs)
-    print('Inserted', len(docs), 'docs for device:', device)
+    print('Inserted', len(docs), 'docs for device', device, '- generated in',
+          round(start_insert - start_gen, 2), 's', '- inserted in',
+          round(time.time() - start_insert, 2), 's')
 
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print("You forgot the MongoDB URI parameter!")
-        print(" - example: mongodb://mongo1,mongo2,mongo3/test?replicaSet=replicaTest&retryWrites=true")
-        print(" - example: mongodb+srv://user:password@cluster0-abcde.mongodb.net/test?retryWrites=true")
+        print(
+            " - example: mongodb://mongo1,mongo2,mongo3/test?replicaSet=replicaTest&retryWrites=true"
+        )
+        print(
+            " - example: mongodb+srv://user:password@cluster0-abcde.mongodb.net/test?retryWrites=true"
+        )
         exit(1)
-    mongo = MongoClient(host=(sys.argv[1]), socketTimeoutMS=10000, connectTimeoutMS=10000, serverSelectionTimeoutMS=10000)
+    mongo = MongoClient(host=(sys.argv[1]),
+                        socketTimeoutMS=10000,
+                        connectTimeoutMS=10000,
+                        serverSelectionTimeoutMS=10000)
     world = mongo.get_database("world")
-    iot = world.get_collection("iot", write_concern=WriteConcern(w=1, wtimeout=8000))
+    iot = world.get_collection("iot",
+                               write_concern=WriteConcern(w=1, wtimeout=8000))
     iot.drop()
 
     for d in device_list:
